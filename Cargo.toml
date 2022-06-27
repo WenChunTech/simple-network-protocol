@@ -3,5 +3,6 @@ members = [
     "arp",
     "socks5",
     "websocket",
-    "http-proxy"
+    "http-proxy",
+    "vpn"
 ]

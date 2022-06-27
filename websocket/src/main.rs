@@ -81,7 +81,12 @@ fn handle_stream(conn: &mut TcpStream) {
             println!("receive message size is: {recv_size}");
             if recv_size > 0 {
                 unsafe {
-                    match conn.write(&parse_payload(buf)) {
+                    let mut payload = parse_payload(buf);
+                    // println!(
+                    //     "receive data is:{}",
+                    //     String::from_utf8(payload).unwrap_or_default()
+                    // );
+                    match conn.write(&pack_data(&mut payload)) {
                         Ok(send_size) => {
                             println!("send data size is: {send_size}");
                         }
@@ -102,7 +107,7 @@ unsafe fn parse_payload(buf: [u8; 1024]) -> Vec<u8> {
     let fin = buf.get_unchecked(0) >> 7;
     let opcode = buf.get_unchecked(0) & 0b1111;
     let mask_flag = buf.get_unchecked(1) >> 7;
-    let data_length = buf.get_unchecked(1) & 0b11111111;
+    let data_length = buf.get_unchecked(1) & 0b1111_111;
     let masks;
     let raw_data;
     println!("fin: {fin}, opcode: {opcode}, mask_flag: {mask_flag}, data_length: {data_length}");
@@ -122,13 +127,25 @@ unsafe fn parse_payload(buf: [u8; 1024]) -> Vec<u8> {
     }
 
     let mut index = 0;
-    let mut data = vec![0u8; 1024];
-    for b in raw_data {
+    let mut data = Vec::with_capacity(data_length as usize);
+    for b in raw_data.iter().take(data_length as usize) {
         data.push(b ^ masks.get_unchecked(index % 4));
         index += 1;
     }
-
+    println!("{data:?}");
     return data;
+}
+
+fn pack_data(data: &mut Vec<u8>) -> Vec<u8> {
+    let fin_and_opcode: u8 = 0b10000001;
+    let mask_and_length = data.len();
+    let mut packed_data = vec![fin_and_opcode];
+    if mask_and_length < 126 {
+        packed_data.push(mask_and_length as u8);
+        packed_data.append(data);
+        return packed_data;
+    }
+    return vec![fin_and_opcode, 0];
 }
 
 #[test]
