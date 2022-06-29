@@ -3,6 +3,7 @@
 use std::{
     io::{BufRead, Read, Write},
     net::{self, TcpStream},
+    thread,
 };
 
 use sha1::{Digest, Sha1};
@@ -26,7 +27,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         println!("accept addr is: {}", addr);
         handle_shake(&mut conn);
-        handle_stream(&mut conn);
+        thread::spawn(move || {
+            handle_stream(&mut conn);
+        });
     }
 
     Ok(())
@@ -76,31 +79,51 @@ fn send_shake_data(conn: &mut TcpStream, webscoket_key: &str) -> Result<(), std:
 
 fn handle_stream(conn: &mut TcpStream) {
     let mut buf = [0u8; 1024];
-    match conn.read(&mut buf) {
-        Ok(recv_size) => {
-            println!("receive message size is: {recv_size}");
-            if recv_size > 0 {
-                unsafe {
-                    let mut payload = parse_payload(buf);
-                    // println!(
-                    //     "receive data is:{}",
-                    //     String::from_utf8(payload).unwrap_or_default()
-                    // );
-                    match conn.write(&pack_data(&mut payload)) {
-                        Ok(send_size) => {
-                            println!("send data size is: {send_size}");
-                        }
-                        Err(e) => {
-                            println!("send message failed: {e}");
-                        }
-                    };
-                }
+    while let Ok(recv_size) = conn.read(&mut buf) {
+        println!("receive message size is: {recv_size}");
+        if recv_size > 0 {
+            unsafe {
+                let mut payload = parse_payload(buf);
+                // println!(
+                //     "receive data is:{}",
+                //     String::from_utf8(payload).unwrap_or_default()
+                // );
+                match conn.write(&pack_data(&mut payload)) {
+                    Ok(send_size) => {
+                        println!("send data size is: {send_size}");
+                    }
+                    Err(e) => {
+                        println!("send message failed: {e}");
+                    }
+                };
             }
         }
-        Err(e) => {
-            println!("receive message error: {e}");
-        }
-    };
+    }
+    // match conn.read(&mut buf) {
+    //     Ok(recv_size) => {
+    //         println!("receive message size is: {recv_size}");
+    //         if recv_size > 0 {
+    //             unsafe {
+    //                 let mut payload = parse_payload(buf);
+    //                 // println!(
+    //                 //     "receive data is:{}",
+    //                 //     String::from_utf8(payload).unwrap_or_default()
+    //                 // );
+    //                 match conn.write(&pack_data(&mut payload)) {
+    //                     Ok(send_size) => {
+    //                         println!("send data size is: {send_size}");
+    //                     }
+    //                     Err(e) => {
+    //                         println!("send message failed: {e}");
+    //                     }
+    //                 };
+    //             }
+    //         }
+    //     }
+    //     Err(e) => {
+    //         println!("receive message error: {e}");
+    //     }
+    // };
 }
 
 unsafe fn parse_payload(buf: [u8; 1024]) -> Vec<u8> {
