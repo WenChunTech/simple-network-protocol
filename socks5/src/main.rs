@@ -7,7 +7,7 @@ use std::{
     thread,
 };
 
-// curl --socks5-hostname 127.0.0.1:1080 baidu.com
+// curl --socks5-hostname 127.0.0.1:7080 baidu.com
 fn main() -> Result<(), Box<dyn Error>> {
     let listen_addr = "127.0.0.1:7080";
     let listener = TcpListener::bind(listen_addr)?;
@@ -72,6 +72,12 @@ fn parse_dst(src_reader: &mut TcpStream) -> Result<String, Box<dyn Error>> {
     if buf[0] != 0x01 {
         return Err("Invalid cmd".into());
     };
+
+    src_reader.read_exact(&mut buf[0..1])?;
+    if buf[0] != 0x00 {
+        return Err("unreachable!".into());
+    };
+
     src_reader.read_exact(&mut buf[..1])?;
     let host = match buf[0] {
         0x01 => {
@@ -99,6 +105,7 @@ fn parse_dst(src_reader: &mut TcpStream) -> Result<String, Box<dyn Error>> {
             .to_string()
         }
         _ => {
+            println!("addr: {}", buf[0]);
             return Err("Invalid address type".into());
         }
     };
@@ -118,10 +125,12 @@ fn do_greeting(
     if buf[0] != 0x05 {
         return Err("Invalid version".into());
     };
-    src_writer.write(&[0x05])?;
+
     src_reader.read_exact(&mut buf[..1])?;
     let nauth = buf[0] as usize;
     src_reader.read_exact(&mut buf[..nauth])?;
+
+    src_writer.write(&[0x05])?;
     src_writer.write(&[0x00])?;
     println!("greeting done!");
     Ok(())
